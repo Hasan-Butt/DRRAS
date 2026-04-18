@@ -6,15 +6,18 @@ CREATE TABLE DISASTER(
 	DisasterID INT IDENTITY(1,1) PRIMARY KEY,
 	Title VARCHAR(200) NOT NULL,
 	Type VARCHAR(50) NOT NULL,
+	-- Severity level from 1 (least severe) to 5 (most severe)
+	-- Constraint to ensure severity level is between 1 and 5
 	SeverityLevel INT NOT NULL
 		CHECK (SeverityLevel Between 1 AND 5),
 	StartDate DATETIME2 NOT NULL,
-	EndDate DATETIME2 NOT NULL,
+	EndDate DATETIME2 NOT NULL
+		Check (EndDate >= StartDate),
 	Status VARCHAR(20) NOT NULL
 		CHECK (Status IN ('Active', 'Contained', 'Resolved')),
 	Description VARCHAR(MAX) NULL
+		
 );
-
 
 --Update Disaster Rename column Description to 
 
@@ -47,10 +50,13 @@ CREATE TABLE Resource(
 		CHECK (TotalQuantity >= 0),
 	AvailableQuantity INT NOT NULL
 		CHECK (AvailableQuantity >= 0 ),
+
 	Units VARCHAR(50) NOT NULL,
 	CONSTRAINT CHK_Resource_Quantity 
         CHECK (AvailableQuantity <= TotalQuantity)
 );
+
+
 
 ---ResponseTeam: Represents operational teams---
 CREATE TABLE ResponseTeam(
@@ -104,7 +110,8 @@ CREATE TABLE Allocation(
 		CHECK (Status IN ('Pending', 'Approved', 'Deployed', 'Completed')),
 	FOREIGN KEY (DisasterID) REFERENCES DISASTER(DisasterID),
 	FOREIGN KEY (RequestID) REFERENCES ResourceRequest(RequestID),
-	FOREIGN KEY (TeamID) REFERENCES ResponseTeam(TeamID)
+	FOREIGN KEY (TeamID) REFERENCES ResponseTeam(TeamID),
+	FOREIGN KEY (ResourceID) REFERENCES Resource(ResourceID)
 );
 
 Select * from DISASTER;
@@ -120,7 +127,7 @@ Select * from Allocation;
 
 -- 1. Disaster Management
 -- 1.1 Add a new disaster event (INSERT
-Insert Into DISASTER (Title, Type, SeverityLevel, StartDate, Status, Discription)
+Insert Into DISASTER (Title, Type, SeverityLevel, StartDate, Status, Description)
 Values ('Lahore Earthquake', 'Earthquake', 4, GETDATE(), 'Active', 'Severe earthquake causing damage');
 
 -- 1.2 Update disaster status (UPDATE + WHERE)
