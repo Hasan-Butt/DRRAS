@@ -3,7 +3,7 @@ import sql from "mssql";
 import jwt from "jsonwebtoken";
 import { serialize } from "cookie";
 
-const JWT_SECRET = "drras_super_secret_key_2026"; // In production, use process.env.JWT_SECRET
+const JWT_SECRET = process.env.JWT_SECRET || "drras_super_secret_key_2026";
 
 export async function POST(req) {
   try {
@@ -14,10 +14,13 @@ export async function POST(req) {
     }
 
     const pool = await getConnection();
-    const result = await pool.request()
+    const result = await pool
+      .request()
       .input("email", sql.VarChar(100), email)
-      .input("pass",  sql.VarChar(255), password)
-      .query("SELECT UserID, FullName, Email, Role FROM [User] WHERE Email = @email AND PasswordHash = @pass");
+      .input("pass", sql.VarChar(255), password)
+      .query(
+        "SELECT UserID, FullName, Email, Role FROM [User] WHERE Email = @email AND PasswordHash = @pass"
+      );
 
     const user = result.recordset[0];
 
@@ -25,19 +28,17 @@ export async function POST(req) {
       return Response.json({ error: "Invalid email or password" }, { status: 401 });
     }
 
-    // Create JWT token
     const token = jwt.sign(
       { userId: user.UserID, email: user.Email, role: user.Role, name: user.FullName },
       JWT_SECRET,
       { expiresIn: "1d" }
     );
 
-    // Set cookie
     const cookie = serialize("auth_token", token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "strict",
-      maxAge: 60 * 60 * 24, // 1 day
+      maxAge: 60 * 60 * 24,
       path: "/",
     });
 
