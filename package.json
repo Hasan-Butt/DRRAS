@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "cookie": "^1.1.1",
+    "framer-motion": "^12.38.0",
     "jsonwebtoken": "^9.0.3",
     "msnodesqlv8": "^5.1.9",
     "mssql": "^12.3.1",
