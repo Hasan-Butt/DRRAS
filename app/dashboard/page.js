@@ -118,14 +118,14 @@ export default function DashboardPage() {
                 {[1, 2, 3, 4, 5].map((lvl) => {
                   const row = sev.find((s) => s.SeverityLevel === lvl);
                   const cnt = row?.cnt || 0;
-                  const pct = Math.round((cnt / maxCount) * 100) || 8;
+                  const pct = cnt === 0 ? 0 : Math.round((cnt / maxCount) * 100);
                   const isHigh = lvl >= 4;
                   return (
                     <div key={lvl} className="flex-1 flex flex-col items-center group">
                       <span className="text-xs text-[#434655] mb-1 opacity-0 group-hover:opacity-100 transition-opacity">{cnt}</span>
                       <div
                         className={`w-full rounded-t-sm transition-all duration-500 ${isHigh ? "bg-[#ba1a1a]/70 group-hover:bg-[#ba1a1a]" : "bg-[#004ac6]/30 group-hover:bg-[#004ac6]/60"}`}
-                        style={{ height: `${pct}%` }}
+                        style={{ height: pct > 0 ? `${pct}%` : '4px' }}
                       ></div>
                       <span className="text-xs font-semibold mt-2 text-[#434655]">L{lvl}</span>
                     </div>

@@ -30,6 +30,7 @@ export async function GET() {
     pool.request().query(`
       SELECT SeverityLevel, COUNT(*) AS cnt
       FROM DISASTER
+      WHERE Status = 'Active'
       GROUP BY SeverityLevel
       ORDER BY SeverityLevel
     `),
