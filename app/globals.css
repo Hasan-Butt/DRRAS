@@ -172,3 +172,11 @@ body {
   background: rgba(255, 255, 255, 0.8);
   backdrop-filter: blur(20px);
 }
+
+html.dark {
+  filter: invert(1) hue-rotate(180deg) !important;
+  background-color: white !important;
+}
+html.dark img, html.dark video, html.dark .icon-no-invert {
+  filter: invert(1) hue-rotate(180deg) !important;
+}
