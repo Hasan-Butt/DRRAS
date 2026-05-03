@@ -1,7 +1,6 @@
 "use client";
 
 import { LoginForm } from "@/components/login-form";
-import { GalleryVerticalEndIcon } from "lucide-react";
 
 export default function LoginPage() {
   return (
@@ -13,10 +12,10 @@ export default function LoginPage() {
           </div>
         </div>
       </div>
-      <div className="relative  bg-muted lg:block">
+      <div className="relative hidden lg:block bg-muted">
         <img
           src="/DRRAS.png"
-          alt="Image"
+          alt="Disaster response illustration"
           className="absolute inset-0 h-full w-full object-cover dark:brightness-[0.2] dark:grayscale"
         />
       </div>
