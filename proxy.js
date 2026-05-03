@@ -3,6 +3,12 @@ import { NextResponse } from "next/server";
 export function proxy(request) {
   const token = request.cookies.get("auth_token")?.value;
   const { pathname } = request.nextUrl;
+
+  // Allow static images to pass through without authentication
+  if (/\.(png|jpg|jpeg|webp|svg|ico)$/i.test(pathname)) {
+    return NextResponse.next();
+  }
+
   // Paths that don't require authentication
   const isPublicPath =
     pathname === "/" ||
