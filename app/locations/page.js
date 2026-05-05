@@ -4,6 +4,14 @@ import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { useSidebar, SidebarProvider } from "../context/SidebarContext";
 
+import dynamic from "next/dynamic";
+
+// Dynamically import the map component (no SSR because Leaflet uses window)
+const MapLocationPicker = dynamic(() => import("@/app/components/MapLocationPicker"), {
+  ssr: false,
+  loading: () => <div className="h-80 bg-gray-100 rounded-lg animate-pulse" />,
+});
+
 const STATUS_LEVELS = (incidents) =>
   incidents >= 3 ? "Critical" : incidents >= 1 ? "Elevated" : "Stable";
 
@@ -26,6 +34,39 @@ const STATUS_STYLES = {
 };
 
 const EMPTY = { City: "", Region: "", Latitude: "", Longitude: "" };
+
+const reverseGeocode = async (lat, lng, setForm) => {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+    );
+    const data = await res.json();
+    if (data && data.address) {
+      const city = data.address.city || data.address.town || data.address.village || "";
+      const region = data.address.state || data.address.county || "";
+      setForm(prev => ({
+        ...prev,
+        City: city,
+        Region: region,
+        Latitude: lat,
+        Longitude: lng,
+      }));
+    } else {
+      setForm(prev => ({
+        ...prev,
+        Latitude: lat,
+        Longitude: lng,
+      }));
+    }
+  } catch (err) {
+    console.error("Reverse geocoding failed", err);
+    setForm(prev => ({
+      ...prev,
+      Latitude: lat,
+      Longitude: lng,
+    }));
+  }
+};
 
 function LocationContent() {
   const [locations, setLocations] = useState([]);
@@ -103,7 +144,7 @@ function LocationContent() {
       >
         <Topbar />
         <main className="flex-1 p-8 space-y-8">
-          {/* Page Header */}
+          {/* Page Header – unchanged */}
           <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
             <div>
               <p className="text-xs font-semibold text-[#434655] uppercase tracking-widest mb-2 flex items-center gap-2">
@@ -139,7 +180,7 @@ function LocationContent() {
             </div>
           </div>
 
-          {/* Summary Bento */}
+          {/* Summary Bento – unchanged */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="bg-white rounded-xl p-6 shadow-ambient col-span-1 md:col-span-2 relative overflow-hidden border border-[#c3c6d7]/20">
               <div className="absolute right-0 top-0 w-64 h-full bg-gradient-to-l from-[#004ac6]/5 to-transparent pointer-events-none"></div>
@@ -209,7 +250,7 @@ function LocationContent() {
             </div>
           </div>
 
-          {/* Location Cards Grid */}
+          {/* Location Cards Grid – unchanged */}
           {loading ? (
             <div className="text-center py-16 text-[#434655]">
               Loading locations...
@@ -287,7 +328,7 @@ function LocationContent() {
         </main>
       </div>
 
-      {/* Add Location Modal */}
+      {/* Add Location Modal – MODIFIED: map picker replaces lat/lng inputs */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-5">
@@ -311,24 +352,11 @@ function LocationContent() {
               </p>
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* City and Region fields remain */}
               {[
                 { key: "City", label: "City *", type: "text", req: true },
                 { key: "Region", label: "Region *", type: "text", req: true },
-                {
-                  key: "Latitude",
-                  label: "Latitude *",
-                  type: "number",
-                  req: true,
-                  step: "any",
-                },
-                {
-                  key: "Longitude",
-                  label: "Longitude *",
-                  type: "number",
-                  req: true,
-                  step: "any",
-                },
-              ].map(({ key, label, type, req, step }) => (
+              ].map(({ key, label, type, req }) => (
                 <div key={key}>
                   <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
                     {label}
@@ -336,15 +364,25 @@ function LocationContent() {
                   <input
                     required={req}
                     type={type}
-                    step={step}
                     value={form[key]}
-                    onChange={(e) =>
-                      setForm({ ...form, [key]: e.target.value })
-                    }
+                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
                     className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
                   />
                 </div>
               ))}
+
+              {/* Map picker – replaces Latitude and Longitude inputs */}
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Pick Location on Map *
+                </label>
+                <MapLocationPicker
+                  onLocationSelect={(lat, lng) => reverseGeocode(lat, lng, setForm)}
+                  initialLat={form.Latitude ? parseFloat(form.Latitude) : undefined}
+                  initialLng={form.Longitude ? parseFloat(form.Longitude) : undefined}
+                />
+              </div>
+
               <div className="flex justify-end gap-3 pt-2">
                 <button
                   type="button"

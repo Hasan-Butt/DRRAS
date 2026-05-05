@@ -156,7 +156,7 @@ export default function Home() {
             transition={{ duration: 0.5, ease: "easeOut" }}
             className="text-lg md:text-xl font-bold tracking-tight"
           >
-            Adaptive Sentinel
+            Disaster Response & Resource Allocation System
           </motion.div>
 
           <div className="hidden md:flex items-center gap-8">
