@@ -25,19 +25,33 @@ export async function GET(req) {
 }
 
 export async function POST(req) {
-  const { DisasterID, ResourceID, RequestID, TeamID, AllocatedQuantity, Status } = await req.json();
-  if (!DisasterID || !ResourceID || !RequestID || !TeamID || !AllocatedQuantity || !Status) {
+  const {
+    DisasterID,
+    ResourceID,
+    RequestID,
+    TeamID,
+    AllocatedQuantity,
+    Status,
+  } = await req.json();
+  if (
+    !DisasterID ||
+    !ResourceID ||
+    !RequestID ||
+    !TeamID ||
+    !AllocatedQuantity ||
+    !Status
+  ) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
   const pool = await getConnection();
-  const result = await pool.request()
-    .input("did",  sql.Int, DisasterID)
-    .input("rid",  sql.Int, ResourceID)
-    .input("reqid",sql.Int, RequestID)
-    .input("tid",  sql.Int, TeamID)
-    .input("qty",  sql.Int, AllocatedQuantity)
-    .input("st",   sql.VarChar(20), Status)
-    .query(`INSERT INTO Allocation
+  const result = await pool
+    .request()
+    .input("did", sql.Int, DisasterID)
+    .input("rid", sql.Int, ResourceID)
+    .input("reqid", sql.Int, RequestID)
+    .input("tid", sql.Int, TeamID)
+    .input("qty", sql.Int, AllocatedQuantity)
+    .input("st", sql.VarChar(20), Status).query(`INSERT INTO Allocation
               (DisasterID, ResourceID, RequestID, TeamID, AllocatedQuantity, Status)
             OUTPUT INSERTED.*
             VALUES (@did, @rid, @reqid, @tid, @qty, @st)`);
@@ -46,12 +60,25 @@ export async function POST(req) {
 
 export async function PATCH(req) {
   const { AllocationID, Status } = await req.json();
-  if (!AllocationID || !Status) return Response.json({ error: "AllocationID and Status required" }, { status: 400 });
+  if (!AllocationID || !Status) {
+    return Response.json({ error: "AllocationID and Status required" }, { status: 400 });
+  }
+
   const pool = await getConnection();
+
+  const existing = await pool.request()
+    .input("id", sql.Int, AllocationID)
+    .query("SELECT AllocationID FROM Allocation WHERE AllocationID = @id");
+
+  if (existing.recordset.length === 0) {
+    return Response.json({ error: "Allocation not found" }, { status: 404 });
+  }
+
   await pool.request()
     .input("id", sql.Int, AllocationID)
     .input("st", sql.VarChar(20), Status)
-    .query("UPDATE Allocation SET Status=@st WHERE AllocationID=@id");
+    .query("UPDATE Allocation SET Status = @st WHERE AllocationID = @id");
+
   return Response.json({ success: true });
 }
 

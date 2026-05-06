@@ -28,20 +28,35 @@ export async function getRequests(req) {
 
 /* POST /api/requests */
 export async function createRequest(req) {
-  const { DisasterID, ResourceID, RequestByUserID, RequestedQuantity, PriorityLevel, Status, Remarks } =
-    await req.json();
-  if (!DisasterID || !ResourceID || !RequestByUserID || !RequestedQuantity || !PriorityLevel || !Status) {
+  const {
+    DisasterID,
+    ResourceID,
+    RequestByUserID,
+    RequestedQuantity,
+    PriorityLevel,
+    Status,
+    Remarks,
+  } = await req.json();
+  if (
+    !DisasterID ||
+    !ResourceID ||
+    !RequestByUserID ||
+    !RequestedQuantity ||
+    !PriorityLevel ||
+    !Status
+  ) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
   }
   const pool = await getConnection();
-  const result = await pool.request()
-    .input("did",  sql.Int,         DisasterID)
-    .input("rid",  sql.Int,         ResourceID)
-    .input("uid",  sql.Int,         RequestByUserID)
-    .input("qty",  sql.Int,         RequestedQuantity)
-    .input("pri",  sql.VarChar(20), PriorityLevel)
-    .input("st",   sql.VarChar(20), Status)
-    .input("rem",  sql.VarChar(500),Remarks || null)
+  const result = await pool
+    .request()
+    .input("did", sql.Int, DisasterID)
+    .input("rid", sql.Int, ResourceID)
+    .input("uid", sql.Int, RequestByUserID)
+    .input("qty", sql.Int, RequestedQuantity)
+    .input("pri", sql.VarChar(20), PriorityLevel)
+    .input("st", sql.VarChar(20), Status)
+    .input("rem", sql.VarChar(500), Remarks || null)
     .query(`INSERT INTO ResourceRequest
               (DisasterID, ResourceID, RequestByUserID, RequestedQuantity, PriorityLevel, Status, Remarks)
             OUTPUT INSERTED.*
@@ -52,13 +67,51 @@ export async function createRequest(req) {
 /* PATCH /api/requests  — update status */
 export async function updateRequest(req) {
   const { RequestID, Status, Remarks } = await req.json();
-  if (!RequestID || !Status) return Response.json({ error: "RequestID and Status required" }, { status: 400 });
+  if (!RequestID || !Status)
+    return Response.json({ error: "RequestID and Status required" }, { status: 400 });
+
   const pool = await getConnection();
+
+  // Fetch current request state before changing it
+  const existing = await pool.request()
+    .input("id", sql.Int, RequestID)
+    .query(`SELECT ResourceID, RequestedQuantity, Status FROM ResourceRequest WHERE RequestID = @id`);
+
+  const current = existing.recordset[0];
+  if (!current)
+    return Response.json({ error: "Request not found" }, { status: 404 });
+
+  // Update the request status
   await pool.request()
     .input("id",  sql.Int,          RequestID)
     .input("st",  sql.VarChar(20),  Status)
     .input("rem", sql.VarChar(500), Remarks || null)
     .query("UPDATE ResourceRequest SET Status=@st, Remarks=@rem WHERE RequestID=@id");
+
+  // Approving a Pending request → subtract from AvailableQuantity
+  if (Status === "Approved" && current.Status === "Pending") {
+    await pool.request()
+      .input("rid", sql.Int, current.ResourceID)
+      .input("qty", sql.Int, current.RequestedQuantity)
+      .query(`
+        UPDATE Resource
+        SET AvailableQuantity = AvailableQuantity - @qty
+        WHERE ResourceID = @rid AND AvailableQuantity >= @qty
+      `);
+  }
+
+  // Denying a previously Approved request → give quantity back
+  if (Status === "Denied" && current.Status === "Approved") {
+    await pool.request()
+      .input("rid", sql.Int, current.ResourceID)
+      .input("qty", sql.Int, current.RequestedQuantity)
+      .query(`
+        UPDATE Resource
+        SET AvailableQuantity = AvailableQuantity + @qty
+        WHERE ResourceID = @rid
+      `);
+  }
+
   return Response.json({ success: true });
 }
 
