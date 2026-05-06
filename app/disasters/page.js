@@ -20,10 +20,12 @@ const EMPTY = {
   EndDate: "",
   Status: "Active",
   Description: "",
+  LocationID: "",
 };
 
 function DisasterContent() {
   const [disasters, setDisasters] = useState([]);
+  const [allDisasters, setAllDisasters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filterSev, setFilterSev] = useState("");
@@ -32,17 +34,30 @@ function DisasterContent() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [locations, setLocations] = useState([]);
+
+  useEffect(() => {
+    fetch("/api/locations")
+      .then((r) => r.json())
+      .then(setLocations)
+      .catch(() => {});
+  }, []);
 
   const load = () => {
     setLoading(true);
-    const params = new URLSearchParams();
-    if (filterStatus && filterStatus !== "All")
-      params.set("status", filterStatus);
-    if (filterSev) params.set("severity", filterSev);
-    fetch(`/api/disasters?${params}`)
+    fetch("/api/disasters")
       .then((r) => r.json())
-      .then((d) => {
-        setDisasters(d);
+      .then((all) => {
+        setAllDisasters(all);
+        const params = new URLSearchParams();
+        if (filterStatus && filterStatus !== "All")
+          params.set("status", filterStatus);
+        if (filterSev) params.set("severity", filterSev);
+        return fetch(`/api/disasters?${params}`);
+      })
+      .then((res) => res.json())
+      .then((filtered) => {
+        setDisasters(filtered);
         setLoading(false);
       })
       .catch(() => setLoading(false));
@@ -59,9 +74,11 @@ function DisasterContent() {
   );
 
   const stats = {
-    active: disasters.filter((d) => d.Status === "Active").length,
-    critical: disasters.filter((d) => d.SeverityLevel === 5).length,
-    resolved: disasters.filter((d) => d.Status === "Resolved").length,
+    active: allDisasters.filter((d) => d.Status === "Active").length,
+    critical: allDisasters.filter(
+      (d) => d.Status === "Active" && d.SeverityLevel === 5,
+    ).length,
+    resolved: allDisasters.filter((d) => d.Status === "Resolved").length,
   };
 
   const handleSubmit = async (e) => {
@@ -75,6 +92,7 @@ function DisasterContent() {
         body: JSON.stringify({
           ...form,
           SeverityLevel: Number(form.SeverityLevel),
+          LocationID: Number(form.LocationID) || null, 
         }),
       });
       if (!res.ok) {
@@ -92,7 +110,7 @@ function DisasterContent() {
 
   const handleStatusChange = async (id, newStatus) => {
     await fetch("/api/disasters", {
-      method: "PATCH",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ DisasterID: id, Status: newStatus }),
     });
@@ -502,6 +520,27 @@ function DisasterContent() {
                     }
                     className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none resize-none"
                   />
+                </div>
+                {/* Location selector */}
+                <div className="col-span-2">
+                  <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                    Link to Location *
+                  </label>
+                  <select
+                    required
+                    value={form.LocationID}
+                    onChange={(e) =>
+                      setForm({ ...form, LocationID: e.target.value })
+                    }
+                    className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none bg-white"
+                  >
+                    <option value="">Select location...</option>
+                    {locations.map((l) => (
+                      <option key={l.LocationID} value={l.LocationID}>
+                        {l.City}, {l.Region}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
               <div className="flex justify-end gap-3 pt-2">

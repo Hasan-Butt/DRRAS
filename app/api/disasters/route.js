@@ -23,7 +23,7 @@ export async function getDisasters(req) {
 /* POST /api/disasters  — create a new disaster */
 export async function createDisaster(req) {
   const body = await req.json();
-  const { Title, Type, SeverityLevel, StartDate, EndDate, Status, Description } = body;
+  const { Title, Type, SeverityLevel, StartDate, EndDate, Status, Description, LocationID } = body;
 
   if (!Title || !Type || !SeverityLevel || !StartDate || !EndDate || !Status) {
     return Response.json({ error: "Missing required fields" }, { status: 400 });
@@ -31,18 +31,28 @@ export async function createDisaster(req) {
 
   const pool = await getConnection();
   const result = await pool.request()
-    .input("Title",        sql.VarChar(200), Title)
-    .input("Type",         sql.VarChar(50),  Type)
-    .input("SeverityLevel",sql.Int,          SeverityLevel)
-    .input("StartDate",    sql.DateTime2,    new Date(StartDate))
-    .input("EndDate",      sql.DateTime2,    new Date(EndDate))
-    .input("Status",       sql.VarChar(20),  Status)
-    .input("Description",  sql.VarChar,      Description || null)
+    .input("Title",         sql.VarChar(200), Title)
+    .input("Type",          sql.VarChar(50),  Type)
+    .input("SeverityLevel", sql.Int,          SeverityLevel)
+    .input("StartDate",     sql.DateTime2,    new Date(StartDate))
+    .input("EndDate",       sql.DateTime2,    new Date(EndDate))
+    .input("Status",        sql.VarChar(20),  Status)
+    .input("Description",   sql.VarChar,      Description || null)
     .query(`INSERT INTO DISASTER (Title, Type, SeverityLevel, StartDate, EndDate, Status, Description)
             OUTPUT INSERTED.*
             VALUES (@Title, @Type, @SeverityLevel, @StartDate, @EndDate, @Status, @Description)`);
 
-  return Response.json(result.recordset[0], { status: 201 });
+  const disaster = result.recordset[0];
+
+  // Link to location if provided
+  if (LocationID) {
+    await pool.request()
+      .input("did", sql.Int, disaster.DisasterID)
+      .input("lid", sql.Int, LocationID)
+      .query(`INSERT INTO DISASTER_LOCATION (DisasterID, LocationID) VALUES (@did, @lid)`);
+  }
+
+  return Response.json(disaster, { status: 201 });
 }
 
 /* PATCH /api/disasters  — update disaster (pass id in body) */

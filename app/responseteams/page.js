@@ -3,11 +3,31 @@ import { useEffect, useState } from "react";
 import Sidebar from "../components/Sidebar";
 import Topbar from "../components/Topbar";
 import { useSidebar, SidebarProvider } from "../context/SidebarContext";
+import dynamic from "next/dynamic";
+
+const MapLocationPicker = dynamic(
+  () => import("@/app/components/MapLocationPicker"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-48 bg-gray-100 rounded-lg animate-pulse" />
+    ),
+  },
+);
 
 const STATUS_STYLES = {
   Available: "bg-[#006229]/15 text-[#006229]",
   Deployed: "bg-[#f57c00]/15 text-[#e65100]",
   Unavailable: "bg-[#ba1a1a]/15 text-[#ba1a1a]",
+};
+
+const EMPTY_FORM = {
+  TeamName: "",
+  Specialization: "",
+  ContactInfo: "",
+  AvailabilityStatus: "Available",
+  Latitude: "",
+  Longitude: "",
 };
 
 function ResponseTeamsContent() {
@@ -16,20 +36,16 @@ function ResponseTeamsContent() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [search, setSearch] = useState("");
   const [updating, setUpdating] = useState(null);
-
-  // Form states
   const [showAddForm, setShowAddForm] = useState(false);
-  const [formData, setFormData] = useState({
-    TeamName: "",
-    Specialization: "",
-    ContactInfo: "",
-    AvailabilityStatus: "Available",
-  });
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  const [saving, setSaving] = useState(false);
+  const { isCollapsed } = useSidebar();
 
   const load = () => {
     setLoading(true);
     const p = new URLSearchParams();
     if (filterStatus !== "All") p.set("status", filterStatus);
+    // ⚠️ Make sure this matches your actual API route filename
     fetch(`/api/responseteams?${p}`)
       .then((r) => r.json())
       .then((d) => {
@@ -38,6 +54,7 @@ function ResponseTeamsContent() {
       })
       .catch(() => setLoading(false));
   };
+
   useEffect(() => {
     load();
   }, [filterStatus]);
@@ -67,22 +84,21 @@ function ResponseTeamsContent() {
 
   const handleAddSubmit = async (e) => {
     e.preventDefault();
+    setSaving(true);
     await fetch("/api/responseteams", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(formData),
+      body: JSON.stringify({
+        ...formData,
+        Latitude: formData.Latitude ? Number(formData.Latitude) : null,
+        Longitude: formData.Longitude ? Number(formData.Longitude) : null,
+      }),
     });
+    setSaving(false);
     setShowAddForm(false);
-    setFormData({
-      TeamName: "",
-      Specialization: "",
-      ContactInfo: "",
-      AvailabilityStatus: "Available",
-    });
+    setFormData(EMPTY_FORM);
     load();
   };
-
-  const { isCollapsed } = useSidebar();
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#f7f9fb]">
@@ -93,7 +109,7 @@ function ResponseTeamsContent() {
         <Topbar />
         <main className="flex-1 p-8 space-y-8">
           {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          <div className="flex flex-row items-center justify-between gap-4">
             <div>
               <h1 className="text-5xl font-extrabold tracking-tight text-[#191c1e]">
                 Response Teams
@@ -104,9 +120,9 @@ function ResponseTeamsContent() {
             </div>
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-[#004ac6] text-white px-5 py-2.5 rounded-full font-bold shadow-sm hover:bg-[#003da6] transition-colors flex items-center gap-2"
+              className="bg-gradient-primary text-white px-6 py-3.5 rounded-xl font-semibold flex items-center gap-2 shadow-ambient hover:opacity-95 transition-opacity whitespace-nowrap"
             >
-              <span className="material-symbols-outlined text-[20px]">add</span>
+              <span className="material-symbols-outlined text-[18px]">add</span>
               Add Team
             </button>
           </div>
@@ -160,25 +176,21 @@ function ResponseTeamsContent() {
           {/* Filters + Table */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-[#f2f4f6] p-2 rounded-xl">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#c3c6d7]/20">
-                  <span className="material-symbols-outlined text-[#434655] text-[16px]">
-                    filter_list
-                  </span>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="bg-transparent border-none text-sm font-medium text-[#191c1e] focus:ring-0 p-0 cursor-pointer"
-                  >
-                    {["All", "Available", "Deployed", "Unavailable"].map(
-                      (s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ),
-                    )}
-                  </select>
-                </div>
+              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#c3c6d7]/20">
+                <span className="material-symbols-outlined text-[#434655] text-[16px]">
+                  filter_list
+                </span>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-transparent border-none text-sm font-medium text-[#191c1e] focus:ring-0 p-0 cursor-pointer"
+                >
+                  {["All", "Available", "Deployed", "Unavailable"].map((s) => (
+                    <option key={s} value={s}>
+                      {s}
+                    </option>
+                  ))}
+                </select>
               </div>
               <div className="relative w-full sm:w-64">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#434655] text-[16px]">
@@ -202,6 +214,7 @@ function ResponseTeamsContent() {
                       "Team Name",
                       "Specialization",
                       "Contact Info",
+                      "Base Location",
                       "Status",
                       "Actions",
                     ].map((h) => (
@@ -218,7 +231,7 @@ function ResponseTeamsContent() {
                   {loading ? (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={6}
                         className="py-12 text-center text-[#434655]"
                       >
                         Loading...
@@ -227,7 +240,7 @@ function ResponseTeamsContent() {
                   ) : filtered.length === 0 ? (
                     <tr>
                       <td
-                        colSpan={5}
+                        colSpan={6}
                         className="py-12 text-center text-[#434655]"
                       >
                         No teams found.
@@ -248,6 +261,21 @@ function ResponseTeamsContent() {
                         <td className="py-4 px-5 text-[#434655]">
                           {team.ContactInfo}
                         </td>
+                        <td className="py-4 px-5 text-[#434655]">
+                          {team.Latitude && team.Longitude ? (
+                            <span className="flex items-center gap-1 text-xs">
+                              <span className="material-symbols-outlined text-[#004ac6] text-[14px]">
+                                location_on
+                              </span>
+                              {Number(team.Latitude).toFixed(4)},{" "}
+                              {Number(team.Longitude).toFixed(4)}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-[#c3c6d7] italic">
+                              No location set
+                            </span>
+                          )}
+                        </td>
                         <td className="py-4 px-5">
                           <span
                             className={`px-2.5 py-1 rounded-full text-xs font-bold flex items-center gap-1 w-max ${STATUS_STYLES[team.AvailabilityStatus] || ""}`}
@@ -263,9 +291,9 @@ function ResponseTeamsContent() {
                                 onClick={() =>
                                   handleStatus(team.TeamID, "Available")
                                 }
-                                className="text-xs px-2.5 py-1 bg-[#006229]/10 text-[#006229] rounded-lg font-semibold hover:bg-[#006229]/20 transition-colors disabled:opacity-50"
+                                className="text-xs px-2.5 py-1 bg-[#006229]/10 text-[#006229] rounded-lg font-semibold hover:bg-[#006229]/20 disabled:opacity-50"
                               >
-                                Mark Available
+                                Available
                               </button>
                             )}
                             {team.AvailabilityStatus !== "Deployed" && (
@@ -274,9 +302,20 @@ function ResponseTeamsContent() {
                                 onClick={() =>
                                   handleStatus(team.TeamID, "Deployed")
                                 }
-                                className="text-xs px-2.5 py-1 bg-[#f57c00]/10 text-[#e65100] rounded-lg font-semibold hover:bg-[#f57c00]/20 transition-colors disabled:opacity-50"
+                                className="text-xs px-2.5 py-1 bg-[#f57c00]/10 text-[#e65100] rounded-lg font-semibold hover:bg-[#f57c00]/20 disabled:opacity-50"
                               >
-                                Mark Deployed
+                                Deployed
+                              </button>
+                            )}
+                            {team.AvailabilityStatus !== "Unavailable" && (
+                              <button
+                                disabled={updating === team.TeamID}
+                                onClick={() =>
+                                  handleStatus(team.TeamID, "Unavailable")
+                                }
+                                className="text-xs px-2.5 py-1 bg-[#ba1a1a]/10 text-[#ba1a1a] rounded-lg font-semibold hover:bg-[#ba1a1a]/20 disabled:opacity-50"
+                              >
+                                Unavailable
                               </button>
                             )}
                           </div>
@@ -289,110 +328,130 @@ function ResponseTeamsContent() {
             </div>
           </div>
         </main>
+      </div>
 
-        {/* Add Modal */}
-        {showAddForm && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-            <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
-                <h3 className="text-lg font-bold text-slate-900">
-                  Add New Team
-                </h3>
-                <button
-                  onClick={() => setShowAddForm(false)}
-                  className="text-slate-400 hover:text-slate-600"
+      {/* Add Team Modal */}
+      {showAddForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md max-h-[85vh] flex flex-col">
+            {/* Header */}
+            <div className="px-5 py-0 border-b border-[#e6e8ea] flex justify-between items-center shrink-0">
+              <h3 className="text-xl font-bold text-[#191c1e]">Add New Team</h3>
+              <button
+                onClick={() => setShowAddForm(false)}
+                className="text-[#434655] hover:text-[#191c1e] p-1 rounded-lg hover:bg-[#f2f4f6]"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {/* Scrollable body */}
+            <div className="flex-1 overflow-y-auto p-5 space-y-3">
+              {[
+                { key: "TeamName", label: "Team Name *", type: "text" },
+                {
+                  key: "Specialization",
+                  label: "Specialization *",
+                  type: "text",
+                },
+                { key: "ContactInfo", label: "Contact Info *", type: "text" },
+              ].map(({ key, label, type }) => (
+                <div key={key}>
+                  <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                    {label}
+                  </label>
+                  <input
+                    required
+                    type={type}
+                    value={formData[key]}
+                    onChange={(e) =>
+                      setFormData({ ...formData, [key]: e.target.value })
+                    }
+                    className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
+                  />
+                </div>
+              ))}
+
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Status *
+                </label>
+                <select
+                  required
+                  value={formData.AvailabilityStatus}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      AvailabilityStatus: e.target.value,
+                    })
+                  }
+                  className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-1.5 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
                 >
-                  <span className="material-symbols-outlined text-[20px]">
-                    close
-                  </span>
-                </button>
+                  <option value="Available">Available</option>
+                  <option value="Deployed">Deployed</option>
+                  <option value="Unavailable">Unavailable</option>
+                </select>
               </div>
-              <form onSubmit={handleAddSubmit} className="p-6 space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Team Name
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={formData.TeamName}
-                    onChange={(e) =>
-                      setFormData({ ...formData, TeamName: e.target.value })
+
+              {/* Map picker - reduced height */}
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Team Base Location
+                </label>
+                <p className="text-xs text-[#434655] mt-0.5 mb-1">
+                  Pin the team's home base.
+                </p>
+                <div className="h-40">
+                  <MapLocationPicker
+                    onLocationSelect={(lat, lng) =>
+                      setFormData((prev) => ({
+                        ...prev,
+                        Latitude: lat,
+                        Longitude: lng,
+                      }))
                     }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    initialLat={
+                      formData.Latitude
+                        ? parseFloat(formData.Latitude)
+                        : undefined
+                    }
+                    initialLng={
+                      formData.Longitude
+                        ? parseFloat(formData.Longitude)
+                        : undefined
+                    }
                   />
                 </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Specialization
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={formData.Specialization}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        Specialization: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Contact Info
-                  </label>
-                  <input
-                    required
-                    type="text"
-                    value={formData.ContactInfo}
-                    onChange={(e) =>
-                      setFormData({ ...formData, ContactInfo: e.target.value })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-1">
-                    Status
-                  </label>
-                  <select
-                    required
-                    value={formData.AvailabilityStatus}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        AvailabilityStatus: e.target.value,
-                      })
-                    }
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                  >
-                    <option value="Available">Available</option>
-                    <option value="Deployed">Deployed</option>
-                    <option value="Unavailable">Unavailable</option>
-                  </select>
-                </div>
-                <div className="pt-4 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setShowAddForm(false)}
-                    className="px-4 py-2 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors shadow-sm"
-                  >
-                    Save Team
-                  </button>
-                </div>
-              </form>
+                {formData.Latitude && formData.Longitude && (
+                  <p className="text-xs text-[#004ac6] mt-1 font-medium">
+                    📍 {Number(formData.Latitude).toFixed(5)},{" "}
+                    {Number(formData.Longitude).toFixed(5)}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            {/* Footer - always visible at bottom */}
+            <div className="px-5 py-3 border-t border-[#e6e8ea] bg-white shrink-0 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setShowAddForm(false)}
+                className="px-4 py-1.5 rounded-lg text-sm font-semibold text-[#434655] bg-[#f2f4f6] hover:bg-[#e6e8ea] transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                disabled={saving}
+                onClick={handleAddSubmit}
+                className="px-4 py-1.5 rounded-lg text-sm font-semibold text-white bg-gradient-primary hover:opacity-90 disabled:opacity-60 transition-opacity"
+              >
+                {saving ? "Saving..." : "Save Team"}
+              </button>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

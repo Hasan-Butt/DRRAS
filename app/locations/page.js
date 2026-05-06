@@ -7,10 +7,15 @@ import { useSidebar, SidebarProvider } from "../context/SidebarContext";
 import dynamic from "next/dynamic";
 
 // Dynamically import the map component (no SSR because Leaflet uses window)
-const MapLocationPicker = dynamic(() => import("@/app/components/MapLocationPicker"), {
-  ssr: false,
-  loading: () => <div className="h-80 bg-gray-100 rounded-lg animate-pulse" />,
-});
+const MapLocationPicker = dynamic(
+  () => import("@/app/components/MapLocationPicker"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="h-80 bg-gray-100 rounded-lg animate-pulse" />
+    ),
+  },
+);
 
 const STATUS_LEVELS = (incidents) =>
   incidents >= 3 ? "Critical" : incidents >= 1 ? "Elevated" : "Stable";
@@ -38,13 +43,14 @@ const EMPTY = { City: "", Region: "", Latitude: "", Longitude: "" };
 const reverseGeocode = async (lat, lng, setForm) => {
   try {
     const res = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`
+      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
     );
     const data = await res.json();
     if (data && data.address) {
-      const city = data.address.city || data.address.town || data.address.village || "";
+      const city =
+        data.address.city || data.address.town || data.address.village || "";
       const region = data.address.state || data.address.county || "";
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         City: city,
         Region: region,
@@ -52,7 +58,7 @@ const reverseGeocode = async (lat, lng, setForm) => {
         Longitude: lng,
       }));
     } else {
-      setForm(prev => ({
+      setForm((prev) => ({
         ...prev,
         Latitude: lat,
         Longitude: lng,
@@ -60,7 +66,7 @@ const reverseGeocode = async (lat, lng, setForm) => {
     }
   } catch (err) {
     console.error("Reverse geocoding failed", err);
-    setForm(prev => ({
+    setForm((prev) => ({
       ...prev,
       Latitude: lat,
       Longitude: lng,
@@ -76,6 +82,24 @@ function LocationContent() {
   const [form, setForm] = useState(EMPTY);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [selectedLoc, setSelectedLoc] = useState(null);
+  const [locDetail, setLocDetail] = useState(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+
+  const openDetail = async (loc) => {
+    setSelectedLoc(loc);
+    setLoadingDetail(true);
+    try {
+      const response = await fetch(`/api/locations/${loc.LocationID}`);
+      const data = await response.json();
+      setLocDetail(data);
+    } catch (err) {
+      console.error("Failed to fetch location details", err);
+      setLocDetail(null);
+    } finally {
+      setLoadingDetail(false);
+    }
+  };
 
   const load = () => {
     setLoading(true);
@@ -250,7 +274,7 @@ function LocationContent() {
             </div>
           </div>
 
-          {/* Location Cards Grid – unchanged */}
+          {/* Location Cards Grid – with updated "View Details" button */}
           {loading ? (
             <div className="text-center py-16 text-[#434655]">
               Loading locations...
@@ -313,8 +337,11 @@ function LocationContent() {
                       ))}
                     </div>
                     <div className="mt-5 pt-4 border-t border-[#c3c6d7]/20 flex justify-end">
-                      <button className="text-[#004ac6] text-sm font-semibold hover:text-[#2563eb] transition-colors flex items-center gap-1">
-                        View Details{" "}
+                      <button
+                        onClick={() => openDetail(loc)}
+                        className="text-[#004ac6] text-sm font-semibold hover:text-[#2563eb] transition-colors flex items-center gap-1"
+                      >
+                        View Details
                         <span className="material-symbols-outlined text-[16px]">
                           arrow_forward
                         </span>
@@ -328,7 +355,7 @@ function LocationContent() {
         </main>
       </div>
 
-      {/* Add Location Modal – MODIFIED: map picker replaces lat/lng inputs */}
+      {/* Add Location Modal – map picker replaces lat/lng inputs (unchanged) */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-5">
@@ -352,7 +379,6 @@ function LocationContent() {
               </p>
             )}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* City and Region fields remain */}
               {[
                 { key: "City", label: "City *", type: "text", req: true },
                 { key: "Region", label: "Region *", type: "text", req: true },
@@ -365,21 +391,28 @@ function LocationContent() {
                     required={req}
                     type={type}
                     value={form[key]}
-                    onChange={(e) => setForm({ ...form, [key]: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, [key]: e.target.value })
+                    }
                     className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
                   />
                 </div>
               ))}
 
-              {/* Map picker – replaces Latitude and Longitude inputs */}
               <div>
                 <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
                   Pick Location on Map *
                 </label>
                 <MapLocationPicker
-                  onLocationSelect={(lat, lng) => reverseGeocode(lat, lng, setForm)}
-                  initialLat={form.Latitude ? parseFloat(form.Latitude) : undefined}
-                  initialLng={form.Longitude ? parseFloat(form.Longitude) : undefined}
+                  onLocationSelect={(lat, lng) =>
+                    reverseGeocode(lat, lng, setForm)
+                  }
+                  initialLat={
+                    form.Latitude ? parseFloat(form.Latitude) : undefined
+                  }
+                  initialLng={
+                    form.Longitude ? parseFloat(form.Longitude) : undefined
+                  }
                 />
               </div>
 
@@ -403,6 +436,127 @@ function LocationContent() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Location Detail Modal */}
+      {selectedLoc && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg p-8 space-y-6 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center">
+              <div>
+                <h2 className="text-2xl font-bold text-[#191c1e]">
+                  {selectedLoc.City}
+                </h2>
+                <p className="text-sm text-[#434655]">{selectedLoc.Region}</p>
+              </div>
+              <button
+                onClick={() => {
+                  setSelectedLoc(null);
+                  setLocDetail(null);
+                }}
+                className="text-[#434655] hover:text-[#191c1e] p-1 rounded-lg hover:bg-[#f2f4f6]"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+
+            {loadingDetail ? (
+              <div className="text-center py-8 text-[#434655]">Loading...</div>
+            ) : locDetail ? (
+              <>
+                {/* Active Disasters */}
+                <div>
+                  <h3 className="text-xs font-semibold text-[#434655] uppercase tracking-wider mb-3">
+                    Linked Disasters ({locDetail.disasters?.length || 0})
+                  </h3>
+                  {!locDetail.disasters || locDetail.disasters.length === 0 ? (
+                    <p className="text-sm text-[#434655]">
+                      No disasters linked to this location.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {locDetail.disasters.map((d) => (
+                        <div
+                          key={d.DisasterID}
+                          className="flex items-center justify-between p-3 bg-[#f7f9fb] rounded-lg"
+                        >
+                          <div>
+                            <p className="font-semibold text-sm text-[#191c1e]">
+                              {d.Title}
+                            </p>
+                            <p className="text-xs text-[#434655]">{d.Type}</p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                                d.SeverityLevel >= 4
+                                  ? "bg-[#ba1a1a]/15 text-[#ba1a1a]"
+                                  : d.SeverityLevel >= 2
+                                    ? "bg-[#f57c00]/15 text-[#e65100]"
+                                    : "bg-[#006229]/15 text-[#006229]"
+                              }`}
+                            >
+                              Level {d.SeverityLevel}
+                            </span>
+                            <span className="text-xs text-[#434655]">
+                              {d.Status}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Nearest Available Teams */}
+                <div>
+                  <h3 className="text-xs font-semibold text-[#434655] uppercase tracking-wider mb-3">
+                    Nearest Available Teams
+                  </h3>
+                  {!locDetail.nearbyTeams || locDetail.nearbyTeams.length === 0 ? (
+                    <p className="text-sm text-[#434655]">
+                      No teams with location data found. Add coordinates to
+                      response teams.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {locDetail.nearbyTeams.slice(0, 5).map((t, i) => (
+                        <div
+                          key={t.TeamID}
+                          className="flex items-center justify-between p-3 bg-[#f7f9fb] rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            <span
+                              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold text-white ${
+                                i === 0 ? "bg-[#004ac6]" : "bg-[#434655]"
+                              }`}
+                            >
+                              {i + 1}
+                            </span>
+                            <div>
+                              <p className="font-semibold text-sm text-[#191c1e]">
+                                {t.TeamName}
+                              </p>
+                              <p className="text-xs text-[#434655]">
+                                {t.Specialization}
+                              </p>
+                            </div>
+                          </div>
+                          <span className="text-xs font-bold text-[#004ac6]">
+                            {t.DistanceKm < 1
+                              ? "<1"
+                              : Math.round(t.DistanceKm)}{" "}
+                            km
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            ) : null}
           </div>
         </div>
       )}

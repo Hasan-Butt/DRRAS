@@ -24,7 +24,7 @@ function DashboardContent() {
   const r = stats?.resources || {};
   const q = stats?.requests || {};
   const sev = stats?.severityDistribution || [];
-  const maxCount = Math.max(...sev.map((s) => s.cnt), 1);
+  const maxCount = Math.max(...sev.map((s) => Number(s.cnt)), 1);
   const deployedPct = r.total ? Math.round((r.deployed / r.total) * 100) : 0;
 
   return (
@@ -148,31 +148,65 @@ function DashboardContent() {
                   Details →
                 </Link>
               </div>
-              <div className="h-52 flex items-end gap-4 border-b border-[#c3c6d7]/30 pb-1">
-                {[1, 2, 3, 4, 5].map((lvl) => {
-                  const row = sev.find((s) => s.SeverityLevel === lvl);
-                  const cnt = row?.cnt || 0;
-                  const pct =
-                    cnt === 0 ? 0 : Math.round((cnt / maxCount) * 100);
-                  const isHigh = lvl >= 4;
-                  return (
+
+              {/* Fixed height wrapper with relative positioning */}
+              <div className="relative h-52">
+                {/* Y-axis gridlines */}
+                <div className="absolute inset-0 flex flex-col justify-between pb-8 pointer-events-none">
+                  {[...Array(4)].map((_, i) => (
                     <div
-                      key={lvl}
-                      className="flex-1 flex flex-col items-center group"
-                    >
-                      <span className="text-xs text-[#434655] mb-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        {cnt}
-                      </span>
+                      key={i}
+                      className="w-full border-t border-dashed border-[#e6e8ea]"
+                    />
+                  ))}
+                </div>
+
+                {/* Bars */}
+                <div className="absolute inset-0 flex items-end gap-3 pb-8 px-2">
+                  {[1, 2, 3, 4, 5].map((lvl) => {
+                    const row = sev.find(
+                      (s) => Number(s.SeverityLevel) === lvl,
+                    );
+                    const cnt = row ? Number(row.cnt) : 0;
+                    const barHeight =
+                      cnt === 0
+                        ? 4
+                        : Math.max(20, Math.round((cnt / maxCount) * 160)); // px, min 20px so it's visible
+                    const isHigh = lvl >= 4;
+
+                    return (
                       <div
-                        className={`w-full rounded-t-sm transition-all duration-500 ${isHigh ? "bg-[#ba1a1a]/70 group-hover:bg-[#ba1a1a]" : "bg-[#004ac6]/30 group-hover:bg-[#004ac6]/60"}`}
-                        style={{ height: pct > 0 ? `${pct}%` : "4px" }}
-                      ></div>
-                      <span className="text-xs font-semibold mt-2 text-[#434655]">
-                        L{lvl}
-                      </span>
-                    </div>
-                  );
-                })}
+                        key={lvl}
+                        className="flex-1 flex flex-col items-center gap-1 group"
+                      >
+                        {/* Count label above bar */}
+                        <span className="text-xs font-bold text-[#434655] mb-1 min-h-[16px]">
+                          {cnt > 0 ? cnt : ""}
+                        </span>
+                        {/* Bar container - fixed height so bars grow upward */}
+                        <div
+                          className="w-full flex items-end"
+                          style={{ height: "160px" }}
+                        >
+                          <div
+                            className={`w-full rounded-t-md transition-all duration-700 ${
+                              isHigh
+                                ? "bg-[#ba1a1a] group-hover:bg-[#9a1212]"
+                                : "bg-[#004ac6]/40 group-hover:bg-[#004ac6]/70"
+                            }`}
+                            style={{
+                              height: cnt === 0 ? "4px" : `${barHeight}px`,
+                            }}
+                          />
+                        </div>
+                        {/* Level label */}
+                        <span className="text-xs font-semibold text-[#434655] mt-1">
+                          L{lvl}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
 

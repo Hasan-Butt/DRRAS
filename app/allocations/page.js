@@ -17,6 +17,21 @@ function AllocationsContent() {
   const [filterStatus, setFilterStatus] = useState("All");
   const [search, setSearch] = useState("");
   const [updating, setUpdating] = useState(null);
+  const [showModal, setShowModal] = useState(false);
+  const [disasters, setDisasters] = useState([]);
+  const [resources, setResources] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [approvedRequests, setApprovedRequests] = useState([]);
+  const [allocForm, setAllocForm] = useState({
+    DisasterID: "",
+    ResourceID: "",
+    RequestID: "",
+    TeamID: "",
+    AllocatedQuantity: "",
+    Status: "Pending",
+  });
+  const [saving, setSaving] = useState(false);
+  const { isCollapsed } = useSidebar();
 
   const load = () => {
     setLoading(true);
@@ -30,9 +45,56 @@ function AllocationsContent() {
       })
       .catch(() => setLoading(false));
   };
+
   useEffect(() => {
     load();
+    fetch("/api/disasters")
+      .then((r) => r.json())
+      .then(setDisasters)
+      .catch(() => {});
+    fetch("/api/resources")
+      .then((r) => r.json())
+      .then(setResources)
+      .catch(() => {});
+    fetch("/api/responseteams")
+      .then((r) => r.json())
+      .then((d) => setTeams(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    fetch("/api/requests?status=Approved")
+      .then((r) => r.json())
+      .then((d) => setApprovedRequests(Array.isArray(d) ? d : []))
+      .catch(() => {});
   }, [filterStatus]);
+
+  const handleNewAllocation = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    const res = await fetch("/api/allocations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        DisasterID: Number(allocForm.DisasterID),
+        ResourceID: Number(allocForm.ResourceID),
+        RequestID: Number(allocForm.RequestID),
+        TeamID: Number(allocForm.TeamID),
+        AllocatedQuantity: Number(allocForm.AllocatedQuantity),
+        Status: "Pending",
+      }),
+    });
+    setSaving(false);
+    if (res.ok) {
+      setShowModal(false);
+      setAllocForm({
+        DisasterID: "",
+        ResourceID: "",
+        RequestID: "",
+        TeamID: "",
+        AllocatedQuantity: "",
+        Status: "Pending",
+      });
+      load();
+    }
+  };
 
   const filtered = allocations.filter(
     (a) =>
@@ -59,8 +121,6 @@ function AllocationsContent() {
     load();
   };
 
-  const { isCollapsed } = useSidebar();
-
   return (
     <div className="flex h-screen overflow-hidden bg-[#f7f9fb]">
       <Sidebar />
@@ -69,8 +129,8 @@ function AllocationsContent() {
       >
         <Topbar />
         <main className="flex-1 p-8 space-y-8">
-          {/* Header */}
-          <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
+          {/* ✅ Header: title on left, button on right */}
+          <div className="flex flex-row items-center justify-between gap-4">
             <div>
               <h1 className="text-5xl font-extrabold tracking-tight text-[#191c1e]">
                 Allocations
@@ -79,6 +139,13 @@ function AllocationsContent() {
                 Manage and deploy resource allocations to response teams.
               </p>
             </div>
+            <button
+              onClick={() => setShowModal(true)}
+              className="bg-gradient-primary text-white px-6 py-3.5 rounded-xl font-semibold flex items-center gap-2 shadow-ambient hover:opacity-95 transition-opacity whitespace-nowrap"
+            >
+              <span className="material-symbols-outlined text-[18px]">add</span>
+              New Allocation
+            </button>
           </div>
 
           {/* Stats */}
@@ -137,29 +204,23 @@ function AllocationsContent() {
           {/* Filters + Table */}
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-[#f2f4f6] p-2 rounded-xl">
-              <div className="flex items-center gap-2">
-                <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#c3c6d7]/20">
-                  <span className="material-symbols-outlined text-[#434655] text-[16px]">
-                    filter_list
-                  </span>
-                  <select
-                    value={filterStatus}
-                    onChange={(e) => setFilterStatus(e.target.value)}
-                    className="bg-transparent border-none text-sm font-medium text-[#191c1e] focus:ring-0 p-0 cursor-pointer"
-                  >
-                    {[
-                      "All",
-                      "Pending",
-                      "Approved",
-                      "Deployed",
-                      "Completed",
-                    ].map((s) => (
+              <div className="flex items-center gap-2 bg-white rounded-lg px-3 py-2 shadow-sm border border-[#c3c6d7]/20">
+                <span className="material-symbols-outlined text-[#434655] text-[16px]">
+                  filter_list
+                </span>
+                <select
+                  value={filterStatus}
+                  onChange={(e) => setFilterStatus(e.target.value)}
+                  className="bg-transparent border-none text-sm font-medium text-[#191c1e] focus:ring-0 p-0 cursor-pointer"
+                >
+                  {["All", "Pending", "Approved", "Deployed", "Completed"].map(
+                    (s) => (
                       <option key={s} value={s}>
                         {s}
                       </option>
-                    ))}
-                  </select>
-                </div>
+                    ),
+                  )}
+                </select>
               </div>
               <div className="relative w-full sm:w-64">
                 <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-[#434655] text-[16px]">
@@ -252,7 +313,7 @@ function AllocationsContent() {
                                 onClick={() =>
                                   handleStatus(alloc.AllocationID, "Approved")
                                 }
-                                className="text-xs px-2.5 py-1 bg-[#004ac6]/10 text-[#004ac6] rounded-lg font-semibold hover:bg-[#004ac6]/20 transition-colors disabled:opacity-50"
+                                className="text-xs px-2.5 py-1 bg-[#004ac6]/10 text-[#004ac6] rounded-lg font-semibold hover:bg-[#004ac6]/20 disabled:opacity-50"
                               >
                                 Approve
                               </button>
@@ -263,7 +324,7 @@ function AllocationsContent() {
                                 onClick={() =>
                                   handleStatus(alloc.AllocationID, "Deployed")
                                 }
-                                className="text-xs px-2.5 py-1 bg-[#9c27b0]/10 text-[#7b1fa2] rounded-lg font-semibold hover:bg-[#9c27b0]/20 transition-colors disabled:opacity-50"
+                                className="text-xs px-2.5 py-1 bg-[#9c27b0]/10 text-[#7b1fa2] rounded-lg font-semibold hover:bg-[#9c27b0]/20 disabled:opacity-50"
                               >
                                 Deploy
                               </button>
@@ -274,7 +335,7 @@ function AllocationsContent() {
                                 onClick={() =>
                                   handleStatus(alloc.AllocationID, "Completed")
                                 }
-                                className="text-xs px-2.5 py-1 bg-[#006229]/10 text-[#006229] rounded-lg font-semibold hover:bg-[#006229]/20 transition-colors disabled:opacity-50"
+                                className="text-xs px-2.5 py-1 bg-[#006229]/10 text-[#006229] rounded-lg font-semibold hover:bg-[#006229]/20 disabled:opacity-50"
                               >
                                 Complete
                               </button>
@@ -290,6 +351,156 @@ function AllocationsContent() {
           </div>
         </main>
       </div>
+
+      {/* Modal */}
+      {showModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-8 space-y-5">
+            <div className="flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-[#191c1e]">
+                New Allocation
+              </h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-[#434655] hover:text-[#191c1e] p-1 rounded-lg hover:bg-[#f2f4f6]"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleNewAllocation} className="space-y-4">
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Disaster *
+                </label>
+                <select
+                  required
+                  value={allocForm.DisasterID}
+                  onChange={(e) =>
+                    setAllocForm({ ...allocForm, DisasterID: e.target.value })
+                  }
+                  className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
+                >
+                  <option value="">Select disaster...</option>
+                  {disasters.map((d) => (
+                    <option key={d.DisasterID} value={d.DisasterID}>
+                      {d.Title}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Approved Request *
+                </label>
+                <select
+                  required
+                  value={allocForm.RequestID}
+                  onChange={(e) => {
+                    const req = approvedRequests.find(
+                      (r) => r.RequestID === Number(e.target.value),
+                    );
+                    setAllocForm({
+                      ...allocForm,
+                      RequestID: e.target.value,
+                      ResourceID: req ? String(req.ResourceID) : "",
+                      AllocatedQuantity: req
+                        ? String(req.RequestedQuantity)
+                        : "",
+                    });
+                  }}
+                  className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
+                >
+                  <option value="">Select approved request...</option>
+                  {approvedRequests.map((r) => (
+                    <option key={r.RequestID} value={r.RequestID}>
+                      #{r.RequestID} — {r.ResourceName} (qty:{" "}
+                      {r.RequestedQuantity})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Resource *
+                </label>
+                <select
+                  required
+                  value={allocForm.ResourceID}
+                  onChange={(e) =>
+                    setAllocForm({ ...allocForm, ResourceID: e.target.value })
+                  }
+                  className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
+                >
+                  <option value="">Select resource...</option>
+                  {resources.map((r) => (
+                    <option key={r.ResourceID} value={r.ResourceID}>
+                      {r.ResourceName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Response Team *
+                </label>
+                <select
+                  required
+                  value={allocForm.TeamID}
+                  onChange={(e) =>
+                    setAllocForm({ ...allocForm, TeamID: e.target.value })
+                  }
+                  className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
+                >
+                  <option value="">Select team...</option>
+                  {teams.length === 0 ? (
+                    <option disabled>No teams found — check API route</option>
+                  ) : (
+                    teams.map((t) => (
+                      <option key={t.TeamID} value={t.TeamID}>
+                        {t.TeamName} — {t.Specialization}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-[#434655] uppercase tracking-wide">
+                  Quantity *
+                </label>
+                <input
+                  required
+                  type="number"
+                  min="1"
+                  value={allocForm.AllocatedQuantity}
+                  onChange={(e) =>
+                    setAllocForm({
+                      ...allocForm,
+                      AllocatedQuantity: e.target.value,
+                    })
+                  }
+                  className="mt-1 w-full border border-[#c3c6d7]/60 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#004ac6] outline-none"
+                />
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowModal(false)}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-[#434655] bg-[#f2f4f6] hover:bg-[#e6e8ea] transition-colors"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="px-5 py-2.5 rounded-xl text-sm font-semibold text-white bg-gradient-primary hover:opacity-90 disabled:opacity-60 transition-opacity"
+                >
+                  {saving ? "Creating..." : "Create Allocation"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
