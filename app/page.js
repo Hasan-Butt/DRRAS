@@ -650,10 +650,8 @@ export default function Home() {
       <footer className="bg-white py-10 border-t border-slate-200">
         <div className="mx-auto max-w-7xl px-6 md:px-8 flex flex-col md:flex-row items-center justify-between gap-5 text-sm text-slate-500">
           <div className="text-center md:text-left">
-            <p className="font-bold text-slate-900">Adaptive Sentinel</p>
-            <p className="mt-1">
-              © 2026 Adaptive Sentinel. All rights reserved.
-            </p>
+            <p className="font-bold text-slate-900">DRRAS</p>
+            <p className="mt-1">© 2026 DRRAS. All rights reserved.</p>
           </div>
 
           <div className="flex items-center gap-6">
